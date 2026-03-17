@@ -41,21 +41,33 @@ def download(
   s3 = _get_s3_client(region=region)
   outdir.mkdir(parents=True, exist_ok=True)
 
-  count = 0
+  matched = 0
+  downloaded = 0
+  skipped = 0
+
   for key in _iter_keys(s3, bucket=bucket, prefix=prefix):
     if not _should_download(key, exts):
       continue
 
+    matched += 1
+
     rel_path = key[len(prefix):] if key.startswith(prefix) else Path(key).name
     local_path = outdir / rel_path
     local_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if local_path.exists():
+      print(f"Skipping existing: {local_path}")
+      skipped += 1
+      continue
 
     if dry_run:
       print(f"[DRY RUN] {key} -> {local_path}")
     else:
       print(f"Downloading: {key}")
       s3.download_file(bucket, key, str(local_path))
+      downloaded += 1
 
-    count += 1
-
-  print(f"Done. {count} file(s) {'matched' if dry_run else 'downloaded'}.")
+  if dry_run:
+    print(f"Done. {matched} file(s) matched.")
+  else:
+    print(f"Done. matched={matched}, downloaded={downloaded}, skipped={skipped}")

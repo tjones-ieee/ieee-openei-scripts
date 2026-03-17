@@ -15,18 +15,21 @@ from dataclasses import dataclass, field, asdict
 from config import config
 from tools.download import download
 
+def download_all():
+  for network in ["AUS", "GSO", "SFO"]:
+    prefix = f"SMART-DS/v1.0/GIS/{network}/"
+    outdir = Path(os.path.join(config.OUTPUT_DIRECTORY, network))
+    download(
+      bucket="oedi-data-lake",
+      prefix=prefix,
+      outdir=outdir,
+      region="us-west-2",
+      # exts=[],
+      # dry_run=True
+    )
+
 
 if __name__ == "__main__":
   # download files
-  download(
-    bucket="oedi-data-lake",
-    prefix="SMART-DS/v1.0/GIS/AUS/",
-    # prefix="SMART-DS/v1.0/GIS/GSO/",
-    # prefix="SMART-DS/v1.0/GIS/SFO/",
-    outdir=config.OUTPUT_DIRECTORY,
-    region="us-west-2",
-    # exts=[],
-    # dry_run=True
-  )
-
-  asdf = 1
+  download_all()
+  
