@@ -31,10 +31,11 @@ def download_all():
 
 def convert_all():
   # for network in ["AUS", "GSO", "SFO"]:
-  #   merge_split_lines(network, dir=config.OUTPUT_DIRECTORY)
+  #   geo.merge_split_lines(network, dir=config.OUTPUT_DIRECTORY)
+  #   geo.merge_devices(network, dir=config.OUTPUT_DIRECTORY)
 
-  # geo.merge_split_lines("AUS", dir=config.OUTPUT_DIRECTORY)
-  geo.merge_devices("SFO", dir=config.OUTPUT_DIRECTORY)
+  geo.merge_split_lines("AUS", dir=config.OUTPUT_DIRECTORY)
+  geo.merge_devices("AUS", dir=config.OUTPUT_DIRECTORY)
 
 
 

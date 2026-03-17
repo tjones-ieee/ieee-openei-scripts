@@ -74,7 +74,7 @@ def merge_split_lines(network:str, dir:str):
   geojson_dir = network_dir / "geojson"
 
   tran_path = geojson_dir / "tran_lines.geojson"
-  ties_path = geojson_dir / "tie_lines.geojson"
+  # ties_path = geojson_dir / "tie_lines.geojson"
   primary_path = geojson_dir / "primary_lines.geojson"
   secondary_path = geojson_dir / "secondary_lines.geojson"
 
@@ -85,39 +85,44 @@ def merge_split_lines(network:str, dir:str):
   gdf = _get_merged_geojson(network, network_dir, "Line_N")
 
   phasev = gdf["PhasesV"].fillna("").astype(str)
-  subest = gdf["Subest"].fillna("True").astype(str)
+  # subest = gdf["Subest"].fillna("True").astype(str)
 
   tran_gdf = gdf[phasev.str.contains("_HV", case=False, na=False)].copy()
-  ties_gdf = gdf[(phasev.str.contains("_MV", case=False, na=False)) & (subest.str.contains("True", case=False, na=False))].copy()
-  primary_gdf = gdf[(phasev.str.contains("_MV", case=False, na=False)) & (~subest.str.contains("True", case=False, na=False))].copy()
+  # ties_gdf = gdf[(phasev.str.contains("_MV", case=False, na=False)) & (subest.str.contains("True", case=False, na=False))].copy()
+  # primary_gdf = gdf[(phasev.str.contains("_MV", case=False, na=False)) & (~subest.str.contains("True", case=False, na=False))].copy()
+  primary_gdf = gdf[phasev.str.contains("_MV", case=False, na=False)].copy()
   secondary_gdf = gdf[phasev.str.contains("_LV", case=False, na=False)].copy()
 
   # create features...
   tran_gdf["network"] = network
-  ties_gdf["network"] = network
+  # ties_gdf["network"] = network
   primary_gdf["network"] = network
   secondary_gdf["network"] = network
 
   if not tran_gdf.empty:
     tran_gdf.to_file(tran_path, driver="GeoJSON", engine="pyogrio")
+    tran_gdf.drop(columns="geometry").to_csv(str(tran_path).replace(".geojson", ".csv"), index=False)
     print(f"Saved: {tran_path} ({len(tran_gdf)})")
   else:
     print("No transmission lines found.")
 
-  if not ties_gdf.empty:
-    ties_gdf.to_file(ties_path, driver="GeoJSON", engine="pyogrio")
-    print(f"Saved: {ties_path} ({len(ties_gdf)})")
-  else:
-    print("No tie lines found.")
+  # if not ties_gdf.empty:
+  #   ties_gdf.to_file(ties_path, driver="GeoJSON", engine="pyogrio")
+  #   ties_gdf.drop(columns="geometry").to_csv(str(ties_path).replace(".geojson", ".csv"), index=False)
+  #   print(f"Saved: {ties_path} ({len(ties_gdf)})")
+  # else:
+  #   print("No tie lines found.")
 
   if not primary_gdf.empty:
     primary_gdf.to_file(primary_path, driver="GeoJSON", engine="pyogrio")
+    primary_gdf.drop(columns="geometry").to_csv(str(primary_path).replace(".geojson", ".csv"), index=False)
     print(f"Saved: {primary_path} ({len(primary_gdf)})")
   else:
     print("No primary lines found.")
 
   if not secondary_gdf.empty:
     secondary_gdf.to_file(secondary_path, driver="GeoJSON", engine="pyogrio")
+    secondary_gdf.drop(columns="geometry").to_csv(str(secondary_path).replace(".geojson", ".csv"), index=False)
     print(f"Saved: {secondary_path} ({len(secondary_gdf)})")
   else:
     print("No secondary lines found.")
@@ -129,25 +134,59 @@ def merge_devices(network:str, dir:str):
   # network_dir = dir + network + \
   network_dir = Path(os.path.join(dir, network))
   geojson_dir = network_dir / "geojson"
+  device_path = geojson_dir / "devices.geojson"
+
+  if os.path.exists(device_path):
+    print("Devices already exist. Delete existing device geojson to run.")
+    return
 
   gdf = _get_merged_geojson(network, network_dir, "SwitchingDevices_N")
 
-
-  distinct_prefixes = sorted(
-    gdf["Code"]
-      .fillna("")
-      .astype(str)
-      .str.extract(r"^([^()]+)", expand=False)
-      .dropna()
-      .str.strip()
-      .unique()
-  )
-  print(distinct_prefixes)
-
-  # gdf["device_type"] = (
+  # print all distinct prefixes used for device typing
+  # distinct_prefixes = sorted(
   #   gdf["Code"]
   #     .fillna("")
   #     .astype(str)
   #     .str.extract(r"^([^()]+)", expand=False)
+  #     .dropna()
   #     .str.strip()
+  #     .unique()
   # )
+  # print(distinct_prefixes)
+  # AUS = ['Breaker', 'ElbSwitch', 'Fuse', 'PadSwitch']
+  # GSO = ['Breaker', 'DisSwitch', 'ElbSwitch', 'Fuse', 'GOAB_DisSwitch', 'PadSwitch']
+  # SFO = ['Breaker', 'DisSwitch', 'ElbSwitch', 'Fuse', 'GOAB_DisSwitch', 'PadSwitch']
+
+  # add features for type and sus/mom auto-isolation point flags
+  gdf["type"] = (
+    gdf["Code"]
+      .fillna("")
+      .astype(str)
+      .str.extract(r"^([^()]+)", expand=False)
+      .str.strip()
+  )
+  gdf["type"] = gdf["type"].replace({
+    "Breaker": "CB",
+    "Fuse": "FU",
+    "ElbSwitch": "SW",
+    "DisSwitch": "SW",
+    "GOAB_DisSwitch": "SW",
+    "PadSwitch": "SW",
+  })
+  gdf["state"] = (
+    (gdf["type"] == "CB") |
+    (
+      gdf["Subest"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.lower()
+        .eq("true")
+    )
+  ).astype(int)
+  gdf["sus_aip"] = gdf["type"].isin(["CB", "FU"])
+  gdf["mom_aip"] = gdf["type"].isin(["CB"])
+  
+  gdf.to_file(device_path, driver="GeoJSON", engine="pyogrio")
+  gdf.drop(columns="geometry").to_csv(str(device_path).replace(".geojson", ".csv"), index=False)
+  print(f"Saved: {device_path} ({len(gdf)})")
