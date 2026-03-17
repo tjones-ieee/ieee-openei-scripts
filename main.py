@@ -13,8 +13,20 @@ from dataclasses import dataclass, field, asdict
 
 # settings and orchestration
 from config import config
+from tools.download import download
 
 
 if __name__ == "__main__":
-  print("hello world")
+  # download files
+  download(
+    bucket="oedi-data-lake",
+    prefix="SMART-DS/v1.0/GIS/AUS/",
+    # prefix="SMART-DS/v1.0/GIS/GSO/",
+    # prefix="SMART-DS/v1.0/GIS/SFO/",
+    outdir=config.OUTPUT_DIRECTORY,
+    region="us-west-2",
+    # exts=[],
+    # dry_run=True
+  )
+
   asdf = 1
