@@ -48,6 +48,12 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
+If new packages are installed, update requirements
+
+```bash
+pip freeze > requirements.txt
+```
+
 ## Usage
 
 Run the project from the repository root:
