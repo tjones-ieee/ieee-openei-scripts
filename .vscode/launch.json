@@ -1,0 +1,14 @@
+{
+  "version": "0.0.0",
+  "configurations": [
+    {
+      "name": "debug",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "main",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    }
+  ]
+}
