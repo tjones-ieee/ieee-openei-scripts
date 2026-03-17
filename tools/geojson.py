@@ -25,7 +25,6 @@ def _get_merged_geojson(network:str, network_dir:str, file_name:str) -> gpd.GeoD
       shp_name = str(shp_path.name.lower())
 
       if any(part in shp_name for part in _IGNORE_NAME_PARTS):
-        print(f"Skipping ignored shapefile: {shp_path.name}")
         continue
 
       if not shp_name.startswith(file_name.lower()):
@@ -240,4 +239,44 @@ def merge_substations(network:str, dir:str):
   gdf.to_file(dist_path, driver="GeoJSON", engine="pyogrio")
   gdf.drop(columns="geometry").to_csv(str(dist_path).replace(".geojson", ".csv"), index=False)
   print(f"Saved: {dist_path} ({len(gdf)})")
+
+def merge_transformers(network:str, dir:str):
+  network_dir = Path(os.path.join(dir, network))
+  geojson_dir = network_dir / "geojson"
+  out_path = geojson_dir / "transformers.geojson"
+
+  if os.path.exists(out_path):
+    print("Transformers already exist. Delete existing transformer geojson to run.")
+    return
+
+  gdf = _get_merged_geojson(network, network_dir, "DistribTransf_N")
+
+  # OEDI is modeled through transformers into the secondary network
+  # all customers are in "NewConsumerGreenfield_N"
+  # transformer customer counts cannot be directly determined without a connectivity trace
+  # note that transformers have a primary node, and then the secondary node just as "LV" to the end of it
+  # then the secondary network model works just like the primary model
+  
+  gdf.to_file(out_path, driver="GeoJSON", engine="pyogrio")
+  gdf.drop(columns="geometry").to_csv(str(out_path).replace(".geojson", ".csv"), index=False)
+  print(f"Saved: {out_path} ({len(gdf)})")
+
+def merge_customers(network:str, dir:str):
+  network_dir = Path(os.path.join(dir, network))
+  geojson_dir = network_dir / "geojson"
+  out_path = geojson_dir / "customers.geojson"
+
+  if os.path.exists(out_path):
+    print("Customers already exist. Delete existing customers geojson to run.")
+    return
+
+  gdf = _get_merged_geojson(network, network_dir, "NewConsumerGreenfield_N")
+
+  # See merge_transformers()
+  # need to decide how I want to handle customer counts...
+  
+  gdf.to_file(out_path, driver="GeoJSON", engine="pyogrio")
+  gdf.drop(columns="geometry").to_csv(str(out_path).replace(".geojson", ".csv"), index=False)
+  print(f"Saved: {out_path} ({len(gdf)})")
+
 

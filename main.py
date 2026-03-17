@@ -38,6 +38,8 @@ def convert_all():
   geo.merge_devices("AUS", dir=config.OUTPUT_DIRECTORY)
   geo.merge_nodes("AUS", dir=config.OUTPUT_DIRECTORY)
   geo.merge_substations("AUS", dir=config.OUTPUT_DIRECTORY)
+  geo.merge_transformers("AUS", dir=config.OUTPUT_DIRECTORY)
+  geo.merge_customers("AUS", dir=config.OUTPUT_DIRECTORY)
 
 
 
