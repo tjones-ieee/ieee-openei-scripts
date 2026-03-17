@@ -14,7 +14,7 @@ from dataclasses import dataclass, field, asdict
 # settings and orchestration
 from config import config
 from tools.download import download
-from tools.geojson import convert_to_geojson
+import tools.geojson as geo
 
 def download_all():
   for network in ["AUS", "GSO", "SFO"]:
@@ -28,14 +28,47 @@ def download_all():
       # exts=[],
       # dry_run=True
     )
+
 def convert_all():
-  for network in ["AUS", "GSO", "SFO"]:
-    convert_to_geojson(network, dir=config.OUTPUT_DIRECTORY)
+  # for network in ["AUS", "GSO", "SFO"]:
+  #   merge_split_lines(network, dir=config.OUTPUT_DIRECTORY)
+
+  # geo.merge_split_lines("AUS", dir=config.OUTPUT_DIRECTORY)
+  geo.merge_devices("SFO", dir=config.OUTPUT_DIRECTORY)
+
 
 
 if __name__ == "__main__":
-  # download files
-  download_all()
-  # convert to GeoJSON
-  convert_all()
-  
+  # download_all() # download files
+  convert_all() # convert to GeoJSON
+
+
+# dumby equip === nodes
+  # filter where not ending in LV
+# lines always oriented NodeA -> NodeB
+  # when subest == True -> state = 0
+# devices always modeled as NodeA -> NodeB regardless of lat/lon
+  # always align as device.NodeA = line.NodeA and device.NodeB = line.NodeB
+  # device state derived from lines where subest == True
+  # devices must be aggregated by type
+    # phasing based on associated line
+  # device point() derived from nodes node.Node = line.NodeA = device.NodeA
+
+
+# ['Breaker', 'ElbSwitch', 'Fuse', 'PadSwitch']
+# ['Breaker', 'DisSwitch', 'ElbSwitch', 'Fuse', 'GOAB_DisSwitch', 'PadSwitch']
+# ['Breaker', 'DisSwitch', 'ElbSwitch', 'Fuse', 'GOAB_DisSwitch', 'PadSwitch']
+
+# CB = Breaker
+# SW = ElbSwitch, DisSwitch, GOAB_DisSwitch, PadSwitch
+# FU = Fuse
+# sus = CB, FU
+# mom = CB
+
+
+# for "sources":
+  # within devices, where type = CB and subest = True and NomV_kV = 12.47
+  # NodeB is the node for the connectivity model
+# for all other devices:
+  # join devices to lines on NodeA and NodeB
+  # line.Code is for segment id

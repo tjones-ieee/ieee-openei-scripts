@@ -1,56 +1,153 @@
+from collections import defaultdict
 import os
 from pathlib import Path
+import pandas as pd
 import geopandas as gpd
 
 _CRS_MAP = {
   "AUS": "EPSG:32614",
   "GSO": "EPSG:32617",
-  "SFO": "EPSG:32610"
+  "SFO": "EPSG:32610",
 }
 
 _IGNORE_NAME_PARTS = ["streetmap"]
 
-def convert_to_geojson(network:str, dir:str):
-  network_dir = Path(os.path.join(dir, network))
-  outdir = Path(os.path.join(network_dir, "geojson"))
 
-  if not os.path.exists(outdir):
-    os.mkdir(outdir)
+def _get_merged_geojson(network:str, network_dir:str, file_name:str) -> gpd.GeoDataFrame | None:
+  grouped: dict[str, list[Path]] = defaultdict(list)
 
-  if not network_dir.exists():
-    print(f"Skipping missing network dir: {network_dir}")
-    return
-
+  # group shapefiles by filename across all subfolders
   for folder_dir in network_dir.iterdir():
-    if not folder_dir.is_dir():
+    if not folder_dir.is_dir() or folder_dir.name.lower() == "geojson":
       continue
 
     for shp_path in folder_dir.glob("*.shp"):
-      geojson_path = Path(os.path.join(outdir,f"{folder_dir.stem}-{shp_path.stem}.geojson"))
+      shp_name = str(shp_path.name.lower())
 
-      shp_name = shp_path.name.lower()
-      if any(part.lower() in shp_name for part in _IGNORE_NAME_PARTS):
+      if any(part in shp_name for part in _IGNORE_NAME_PARTS):
         print(f"Skipping ignored shapefile: {shp_path.name}")
         continue
 
-      if geojson_path.exists():
-        print(f"Skipping existing: {geojson_path}")
+      if not shp_name.startswith(file_name.lower()):
         continue
 
-      try:
-        print(f"Converting: {shp_path}")
+      grouped[shp_path.name].append(shp_path)
 
-        gdf = gpd.read_file(shp_path)
+  # merge each shapefile group into one output geojson
+  for shp_name, shp_paths in grouped.items():
+    try:
+      frames: list[gpd.GeoDataFrame] = []
 
-        # source CRS is missing from the shapefiles
+      for shp_path in shp_paths:
+        print(f"Loading: {shp_path}")
+
+        gdf = gpd.read_file(shp_path, engine="pyogrio")
         gdf = gdf.set_crs(_CRS_MAP[network], allow_override=True)
-
-        # reproject to WGS84 for GeoJSON
         gdf = gdf.to_crs("EPSG:4326")
 
-        gdf.to_file(geojson_path, driver="GeoJSON")
-        print(f"Saved: {geojson_path}")
+        # optional lineage fields
+        gdf["network"] = network
+        gdf["source_folder"] = shp_path.parent.name
+        gdf["source_file"] = shp_path.name
 
-      except Exception as ex:
-        print(f"Failed: {shp_path} -> {ex}")
+        frames.append(gdf)
 
+      if not frames:
+        continue
+
+      merged = gpd.GeoDataFrame(
+        pd.concat(frames, ignore_index=True),
+        crs="EPSG:4326",
+      )
+
+      return merged
+    except Exception as ex:
+      print(f"Failed: {shp_name} -> {ex}")
+
+  return None
+    
+
+def merge_split_lines(network:str, dir:str):
+  # dir = C:\ProgramData\folder\oedi\
+  # network_dir = dir + network + \
+  network_dir = Path(os.path.join(dir, network))
+  geojson_dir = network_dir / "geojson"
+
+  tran_path = geojson_dir / "tran_lines.geojson"
+  ties_path = geojson_dir / "tie_lines.geojson"
+  primary_path = geojson_dir / "primary_lines.geojson"
+  secondary_path = geojson_dir / "secondary_lines.geojson"
+
+  if os.path.exists(tran_path) or os.path.exists(primary_path) or os.path.exists(secondary_path):
+    print("One or more line files already exist. Delete existing line geojsons to run.")
+    return
+
+  gdf = _get_merged_geojson(network, network_dir, "Line_N")
+
+  phasev = gdf["PhasesV"].fillna("").astype(str)
+  subest = gdf["Subest"].fillna("True").astype(str)
+
+  tran_gdf = gdf[phasev.str.contains("_HV", case=False, na=False)].copy()
+  ties_gdf = gdf[(phasev.str.contains("_MV", case=False, na=False)) & (subest.str.contains("True", case=False, na=False))].copy()
+  primary_gdf = gdf[(phasev.str.contains("_MV", case=False, na=False)) & (~subest.str.contains("True", case=False, na=False))].copy()
+  secondary_gdf = gdf[phasev.str.contains("_LV", case=False, na=False)].copy()
+
+  # create features...
+  tran_gdf["network"] = network
+  ties_gdf["network"] = network
+  primary_gdf["network"] = network
+  secondary_gdf["network"] = network
+
+  if not tran_gdf.empty:
+    tran_gdf.to_file(tran_path, driver="GeoJSON", engine="pyogrio")
+    print(f"Saved: {tran_path} ({len(tran_gdf)})")
+  else:
+    print("No transmission lines found.")
+
+  if not ties_gdf.empty:
+    ties_gdf.to_file(ties_path, driver="GeoJSON", engine="pyogrio")
+    print(f"Saved: {ties_path} ({len(ties_gdf)})")
+  else:
+    print("No tie lines found.")
+
+  if not primary_gdf.empty:
+    primary_gdf.to_file(primary_path, driver="GeoJSON", engine="pyogrio")
+    print(f"Saved: {primary_path} ({len(primary_gdf)})")
+  else:
+    print("No primary lines found.")
+
+  if not secondary_gdf.empty:
+    secondary_gdf.to_file(secondary_path, driver="GeoJSON", engine="pyogrio")
+    print(f"Saved: {secondary_path} ({len(secondary_gdf)})")
+  else:
+    print("No secondary lines found.")
+
+  return
+
+def merge_devices(network:str, dir:str):
+  # dir = C:\ProgramData\folder\oedi\
+  # network_dir = dir + network + \
+  network_dir = Path(os.path.join(dir, network))
+  geojson_dir = network_dir / "geojson"
+
+  gdf = _get_merged_geojson(network, network_dir, "SwitchingDevices_N")
+
+
+  distinct_prefixes = sorted(
+    gdf["Code"]
+      .fillna("")
+      .astype(str)
+      .str.extract(r"^([^()]+)", expand=False)
+      .dropna()
+      .str.strip()
+      .unique()
+  )
+  print(distinct_prefixes)
+
+  # gdf["device_type"] = (
+  #   gdf["Code"]
+  #     .fillna("")
+  #     .astype(str)
+  #     .str.extract(r"^([^()]+)", expand=False)
+  #     .str.strip()
+  # )

@@ -2,6 +2,8 @@
 
 Python tools for extracting and working with data from the OpenEI Open Energy Data Initiative (OEDI).
 
+https://data.openei.org/submissions/2981
+
 ## Author
 
 ### Tyler Jones
