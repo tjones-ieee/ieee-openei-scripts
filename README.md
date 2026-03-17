@@ -22,8 +22,8 @@ This project is an open-source Python extractor intended to help users discover,
 Clone the repository and create a virtual environment:
 
 ```bash
-git clone <your-repo-url>
-cd ieee-oedi-scripts
+git clone https://github.com/tjones-ieee/ieee-openei-scripts
+cd ieee-openei-scripts
 
 python -m venv .venv
 ```
