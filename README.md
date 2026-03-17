@@ -62,7 +62,9 @@ You must create a local `.env.local` file with:
 OUTPUT_DIRECTORY="<directory with forward slashes>"
 ```
 
-Not recommended you use a folder which syncs with OneDrive or iCloud. **Output size is approx 8GB.**
+Not recommended you use a folder which syncs with OneDrive or iCloud.
+
+**Output size is approx. 11GB** between download and converting to GeoJSON.
 
 ## Usage
 
