@@ -13,7 +13,9 @@ _IGNORE_NAME_PARTS = ["streetmap"]
 def convert_to_geojson(network:str, dir:str):
   network_dir = Path(os.path.join(dir, network))
   outdir = Path(os.path.join(network_dir, "geojson"))
-  os.mkdir(outdir)
+
+  if not os.path.exists(outdir):
+    os.mkdir(outdir)
 
   if not network_dir.exists():
     print(f"Skipping missing network dir: {network_dir}")

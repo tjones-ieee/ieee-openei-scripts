@@ -54,12 +54,30 @@ If new packages are installed, update requirements
 pip freeze > requirements.txt
 ```
 
+## Environment Requirements
+
+You must create a local `.env.local` file with:
+
+```bash
+OUTPUT_DIRECTORY="<directory with forward slashes>"
+```
+
+Not recommended you use a folder which syncs with OneDrive or iCloud. **Output size is approx 8GB.**
+
 ## Usage
 
 Run the project from the repository root:
 
 ```bash
 python -m main
+```
+
+Or, on Windows, hit F5 and configure Python Debug Console
+
+For Anaconda:
+
+```bash
+conda activate <env>
 ```
 
 ## Contributing
