@@ -71,9 +71,8 @@ def merge_split_lines(network:str, dir:str):
   geojson_dir = network_dir / "geojson"
 
   tran_path = geojson_dir / "tran_lines.geojson"
-  # ties_path = geojson_dir / "tie_lines.geojson"
-  primary_path = geojson_dir / "primary_lines.geojson"
-  secondary_path = geojson_dir / "secondary_lines.geojson"
+  primary_path = geojson_dir / "dist_primary_lines.geojson"
+  secondary_path = geojson_dir / "dist_secondary_lines.geojson"
 
   if os.path.exists(tran_path) or os.path.exists(primary_path) or os.path.exists(secondary_path):
     print("One or more line files already exist. Delete existing line geojsons to run.")
@@ -81,18 +80,19 @@ def merge_split_lines(network:str, dir:str):
 
   gdf = _get_merged_geojson(network, network_dir, "Line_N")
 
-  phasev = gdf["PhasesV"].fillna("").astype(str)
-  # subest = gdf["Subest"].fillna("True").astype(str)
+  # create OH/UG flags
+  equip = gdf["Equip"].fillna("").astype(str).str.upper()
+  gdf["OH"] = equip.str.contains("_OH_", na=False)
+  gdf["UG"] = equip.str.contains("_UG_", na=False)
 
+  # split into transmission, primary distribution, and secondary service
+  phasev = gdf["PhasesV"].fillna("").astype(str)
   tran_gdf = gdf[phasev.str.contains("_HV", case=False, na=False)].copy()
-  # ties_gdf = gdf[(phasev.str.contains("_MV", case=False, na=False)) & (subest.str.contains("True", case=False, na=False))].copy()
-  # primary_gdf = gdf[(phasev.str.contains("_MV", case=False, na=False)) & (~subest.str.contains("True", case=False, na=False))].copy()
   primary_gdf = gdf[phasev.str.contains("_MV", case=False, na=False)].copy()
   secondary_gdf = gdf[phasev.str.contains("_LV", case=False, na=False)].copy()
 
   # create features...
   tran_gdf["network"] = network
-  # ties_gdf["network"] = network
   primary_gdf["network"] = network
   secondary_gdf["network"] = network
 
@@ -102,13 +102,6 @@ def merge_split_lines(network:str, dir:str):
     print(f"Saved: {tran_path} ({len(tran_gdf)})")
   else:
     print("No transmission lines found.")
-
-  # if not ties_gdf.empty:
-  #   ties_gdf.to_file(ties_path, driver="GeoJSON", engine="pyogrio")
-  #   ties_gdf.drop(columns="geometry").to_csv(str(ties_path).replace(".geojson", ".csv"), index=False)
-  #   print(f"Saved: {ties_path} ({len(ties_gdf)})")
-  # else:
-  #   print("No tie lines found.")
 
   if not primary_gdf.empty:
     primary_gdf.to_file(primary_path, driver="GeoJSON", engine="pyogrio")
@@ -129,9 +122,11 @@ def merge_split_lines(network:str, dir:str):
 def merge_devices(network:str, dir:str):
   network_dir = Path(os.path.join(dir, network))
   geojson_dir = network_dir / "geojson"
-  device_path = geojson_dir / "devices.geojson"
 
-  if os.path.exists(device_path):
+  tran_path = geojson_dir / "tran_devices.geojson"
+  dist_path = geojson_dir / "dist_devices.geojson"
+
+  if os.path.exists(tran_path) or os.path.exists(dist_path):
     print("Devices already exist. Delete existing device geojson to run.")
     return
 
@@ -181,17 +176,32 @@ def merge_devices(network:str, dir:str):
   ).astype(int)
   gdf["sus_aip"] = gdf["type"].isin(["CB", "FU"])
   gdf["mom_aip"] = gdf["type"].isin(["CB"])
-  
-  gdf.to_file(device_path, driver="GeoJSON", engine="pyogrio")
-  gdf.drop(columns="geometry").to_csv(str(device_path).replace(".geojson", ".csv"), index=False)
-  print(f"Saved: {device_path} ({len(gdf)})")
+
+  # split into T&D
+  nomv = gdf["NomV_kV"].fillna("").astype(str)
+  tran_gdf = gdf[~nomv.str.contains("12.47", case=False, na=False)].copy()
+  dist_gdf = gdf[nomv.str.contains("12.47", case=False, na=False)].copy()
+
+  if not tran_gdf.empty:
+    tran_gdf.to_file(tran_path, driver="GeoJSON", engine="pyogrio")
+    tran_gdf.drop(columns="geometry").to_csv(str(tran_path).replace(".geojson", ".csv"), index=False)
+    print(f"Saved: {tran_path} ({len(tran_gdf)})")
+  else:
+    print("No transmission devices found.")
+
+  if not dist_gdf.empty:
+    dist_gdf.to_file(dist_path, driver="GeoJSON", engine="pyogrio")
+    dist_gdf.drop(columns="geometry").to_csv(str(dist_path).replace(".geojson", ".csv"), index=False)
+    print(f"Saved: {dist_path} ({len(dist_gdf)})")
+  else:
+    print("No distribution devices found.")
 
 def merge_nodes(network:str, dir:str):
   network_dir = Path(os.path.join(dir, network))
   geojson_dir = network_dir / "geojson"
 
-  primary_path = geojson_dir / "primary_nodes.geojson"
-  secondary_path = geojson_dir / "secondary_nodes.geojson"
+  primary_path = geojson_dir / "dist_primary_nodes.geojson"
+  secondary_path = geojson_dir / "dist_secondary_nodes.geojson"
 
   if os.path.exists(primary_path) or os.path.exists(secondary_path):
     print("One or more node files already exist. Delete existing node geojsons to run.")
@@ -243,7 +253,7 @@ def merge_substations(network:str, dir:str):
 def merge_transformers(network:str, dir:str):
   network_dir = Path(os.path.join(dir, network))
   geojson_dir = network_dir / "geojson"
-  out_path = geojson_dir / "transformers.geojson"
+  out_path = geojson_dir / "dist_transformers.geojson"
 
   if os.path.exists(out_path):
     print("Transformers already exist. Delete existing transformer geojson to run.")
@@ -278,5 +288,111 @@ def merge_customers(network:str, dir:str):
   gdf.to_file(out_path, driver="GeoJSON", engine="pyogrio")
   gdf.drop(columns="geometry").to_csv(str(out_path).replace(".geojson", ".csv"), index=False)
   print(f"Saved: {out_path} ({len(gdf)})")
+
+def create_sources(network:str, dir:str):
+  """
+  for "sources":
+    within devices, where type = CB and subest = True and NomV_kV = 12.47
+    have to create a fake line because NodeA for these devices does not exist in lines
+    but it's easy because the device itself is a "line string"
+      Code=source.Code
+      NodeA=source.NodeA
+      NodeB=source.NodeB
+      NomV=12.47
+      Len=0.007
+      Equip=3P_OH_AL_ACSR_1033kcmil_Curlew_12.47_1
+      R=0.00111
+      X=0.00684
+      C=0.24259
+      R0=0.00283
+      X0=0.0175
+      C0=0.0175
+      Imax=960
+      Status=1
+      Phases=ABC
+      PhasesV=ABC_MV
+      PhasesVI=3_MV_960
+  """
+  network_dir = Path(os.path.join(dir, network))
+  geojson_dir = network_dir / "geojson"
+
+  devices_path = geojson_dir / "dist_devices.geojson"
+  lines_path = geojson_dir / "dist_primary_lines.geojson"
+  sources_path = geojson_dir / "dist_sources.geojson"
+
+  if os.path.exists(sources_path):
+    print("Sources already exist. Delete existing sources geojson to run.")
+    return
+
+  devices = gpd.read_file(devices_path, engine="pyogrio")
+  lines = gpd.read_file(lines_path, engine="pyogrio")
+
+  subest = (
+    devices["Subest"]
+      .fillna("")
+      .astype(str)
+      .str.strip()
+      .str.lower()
+  )
+  nomv = (
+    devices["NomV_kV"]
+      .fillna("")
+      .astype(str)
+      .str.strip()
+  )
+  dtype = (
+    devices["type"]
+      .fillna("")
+      .astype(str)
+      .str.strip()
+      .str.upper()
+  )
+
+  sources = devices[
+    (dtype.eq("CB")) &
+    (subest.isin(["true", "1", "yes", "y", "t"])) &
+    (nomv.eq("12.47"))
+  ].copy()
+
+  if sources.empty:
+    print(f"No sources found for {network}")
+    return
+
+  source_lines = gpd.GeoDataFrame({
+    "Code": sources["Code"],
+    "NodeA": sources["NodeA"],
+    "NodeB": sources["NodeB"],
+    "NomV": 12.47,
+    "Len": 0.007,
+    "Equip": "3P_OH_AL_ACSR_1033kcmil_Curlew_12.47_1",
+    "R": 0.00111,
+    "X": 0.00684,
+    "C": 0.24259,
+    "R0": 0.00283,
+    "X0": 0.0175,
+    "C0": 0.0175,
+    "Imax": 960,
+    "Status": 1,
+    "Phases": "ABC",
+    "PhaseV": "ABC_MV",
+    "PhasesVI": "3_MV_960",
+    "geometry": sources.geometry,
+  }, geometry="geometry", crs=devices.crs)
+
+  merged = gpd.GeoDataFrame(
+    pd.concat([lines, source_lines], ignore_index=True),
+    geometry="geometry",
+    crs=lines.crs,
+  )
+
+  # save updated lines
+  merged.to_file(lines_path, driver="GeoJSON", engine="pyogrio")
+  merged.drop(columns="geometry").to_csv(str(lines_path).replace(".geojson", ".csv"), index=False)
+  print(f"Appended {len(source_lines)} source line(s) to {lines_path}")
+
+  # save the sources
+  sources.to_file(sources_path, driver="GeoJSON", engine="pyogrio")
+  sources.drop(columns="geometry").to_csv(str(sources_path).replace(".geojson", ".csv"), index=False)
+  print(f"Saved: {sources_path} ({len(sources)})")
 
 

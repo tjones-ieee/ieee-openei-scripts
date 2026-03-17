@@ -40,10 +40,15 @@ def convert_all():
   geo.merge_substations("AUS", dir=config.OUTPUT_DIRECTORY)
   geo.merge_transformers("AUS", dir=config.OUTPUT_DIRECTORY)
   geo.merge_customers("AUS", dir=config.OUTPUT_DIRECTORY)
+  geo.create_sources("AUS", dir=config.OUTPUT_DIRECTORY)
 
 
 
 if __name__ == "__main__":
+  # for best results, remove everything in config.OUTPUT_DIRECTORY first
+  # once downloaded, you can comment download_all()
+  # and then delete everything in /geojson thereafter
+
   # download_all() # download files
   convert_all() # convert to GeoJSON
 
@@ -71,9 +76,7 @@ if __name__ == "__main__":
 # mom = CB
 
 
-# for "sources":
-  # within devices, where type = CB and subest = True and NomV_kV = 12.47
-  # NodeB is the node for the connectivity model
+
 # for all other devices:
   # join devices to lines on NodeA and NodeB
   # line.Code is for segment id
