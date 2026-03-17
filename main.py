@@ -36,6 +36,8 @@ def convert_all():
 
   geo.merge_split_lines("AUS", dir=config.OUTPUT_DIRECTORY)
   geo.merge_devices("AUS", dir=config.OUTPUT_DIRECTORY)
+  geo.merge_nodes("AUS", dir=config.OUTPUT_DIRECTORY)
+  geo.merge_substations("AUS", dir=config.OUTPUT_DIRECTORY)
 
 
 

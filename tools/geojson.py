@@ -68,8 +68,6 @@ def _get_merged_geojson(network:str, network_dir:str, file_name:str) -> gpd.GeoD
     
 
 def merge_split_lines(network:str, dir:str):
-  # dir = C:\ProgramData\folder\oedi\
-  # network_dir = dir + network + \
   network_dir = Path(os.path.join(dir, network))
   geojson_dir = network_dir / "geojson"
 
@@ -130,8 +128,6 @@ def merge_split_lines(network:str, dir:str):
   return
 
 def merge_devices(network:str, dir:str):
-  # dir = C:\ProgramData\folder\oedi\
-  # network_dir = dir + network + \
   network_dir = Path(os.path.join(dir, network))
   geojson_dir = network_dir / "geojson"
   device_path = geojson_dir / "devices.geojson"
@@ -190,3 +186,58 @@ def merge_devices(network:str, dir:str):
   gdf.to_file(device_path, driver="GeoJSON", engine="pyogrio")
   gdf.drop(columns="geometry").to_csv(str(device_path).replace(".geojson", ".csv"), index=False)
   print(f"Saved: {device_path} ({len(gdf)})")
+
+def merge_nodes(network:str, dir:str):
+  network_dir = Path(os.path.join(dir, network))
+  geojson_dir = network_dir / "geojson"
+
+  primary_path = geojson_dir / "primary_nodes.geojson"
+  secondary_path = geojson_dir / "secondary_nodes.geojson"
+
+  if os.path.exists(primary_path) or os.path.exists(secondary_path):
+    print("One or more node files already exist. Delete existing node geojsons to run.")
+    return
+
+  gdf = _get_merged_geojson(network, network_dir, "DummyEquip")
+
+  node = gdf["Node"].fillna("").astype(str).str.strip()
+
+  primary_gdf = gdf[~node.str.endswith("LV", na=False)].copy()
+  secondary_gdf = gdf[node.str.endswith("LV", na=False)].copy()
+
+  if not primary_gdf.empty:
+    primary_gdf.to_file(primary_path, driver="GeoJSON", engine="pyogrio")
+    primary_gdf.drop(columns="geometry").to_csv(str(primary_path).replace(".geojson", ".csv"), index=False)
+    print(f"Saved: {primary_path} ({len(primary_gdf)})")
+  else:
+    print("No primary nodes found.")
+
+  if not secondary_gdf.empty:
+    secondary_gdf.to_file(secondary_path, driver="GeoJSON", engine="pyogrio")
+    secondary_gdf.drop(columns="geometry").to_csv(str(secondary_path).replace(".geojson", ".csv"), index=False)
+    print(f"Saved: {secondary_path} ({len(secondary_gdf)})")
+  else:
+    print("No secondary nodes found.")
+
+def merge_substations(network:str, dir:str):
+  network_dir = Path(os.path.join(dir, network))
+  geojson_dir = network_dir / "geojson"
+  tran_path = geojson_dir / "tran_substations.geojson"
+  dist_path = geojson_dir / "dist_substations.geojson"
+
+  if os.path.exists(tran_path) or os.path.exists(dist_path):
+    print("Substations already exist. Delete existing substation geojson to run.")
+    return
+
+  # transmission
+  gdf = _get_merged_geojson(network, network_dir, "TransSubstation_N")
+  gdf.to_file(tran_path, driver="GeoJSON", engine="pyogrio")
+  gdf.drop(columns="geometry").to_csv(str(tran_path).replace(".geojson", ".csv"), index=False)
+  print(f"Saved: {tran_path} ({len(gdf)})")
+  
+  # distribution
+  gdf = _get_merged_geojson(network, network_dir, "HVMVSubstation_N")
+  gdf.to_file(dist_path, driver="GeoJSON", engine="pyogrio")
+  gdf.drop(columns="geometry").to_csv(str(dist_path).replace(".geojson", ".csv"), index=False)
+  print(f"Saved: {dist_path} ({len(gdf)})")
+
