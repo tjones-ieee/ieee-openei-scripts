@@ -426,9 +426,9 @@ def create_sources(network:str, dir:str):
     return
 
   # set the line code and create the "fake" line segments
-  sources["LineCode"] = sources["Code"]
+  sources["LineCode"] = sources["Code"].apply(_extract_line_code)
   source_lines = gpd.GeoDataFrame({
-    "Code": sources["Code"],
+    "Code": sources["LineCode"],
     "NodeA": sources["NodeA"],
     "NodeB": sources["NodeB"],
     "NomV": 12.47,
