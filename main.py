@@ -34,13 +34,15 @@ def convert_all():
   #   geo.merge_split_lines(network, dir=config.OUTPUT_DIRECTORY)
   #   geo.merge_devices(network, dir=config.OUTPUT_DIRECTORY)
 
+  # must do nodes and lines first for devices
+  geo.merge_nodes("AUS", dir=config.OUTPUT_DIRECTORY)
   geo.merge_split_lines("AUS", dir=config.OUTPUT_DIRECTORY)
   geo.merge_devices("AUS", dir=config.OUTPUT_DIRECTORY)
-  geo.merge_nodes("AUS", dir=config.OUTPUT_DIRECTORY)
   geo.merge_substations("AUS", dir=config.OUTPUT_DIRECTORY)
   geo.merge_transformers("AUS", dir=config.OUTPUT_DIRECTORY)
   geo.merge_customers("AUS", dir=config.OUTPUT_DIRECTORY)
-  geo.create_sources("AUS", dir=config.OUTPUT_DIRECTORY)
+  geo.create_sources("AUS", dir=config.OUTPUT_DIRECTORY) # requires lines and devices
+  geo.create_circuits("AUS", dir=config.OUTPUT_DIRECTORY) # requires devices
 
 
 

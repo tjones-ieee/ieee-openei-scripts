@@ -119,6 +119,21 @@ def merge_split_lines(network:str, dir:str):
 
   return
 
+def _extract_line_code(device_code: str) -> str | None:
+  if not device_code:
+    return None
+
+  start = device_code.find('(')
+  end = device_code.find(')', start + 1)
+
+  if start == -1 or end == -1 or end <= start + 1:
+    return None
+
+  inner = device_code[start + 1:end].strip()
+  if not inner:
+    return None
+
+  return f"L({inner})"
 def merge_devices(network:str, dir:str):
   network_dir = Path(os.path.join(dir, network))
   geojson_dir = network_dir / "geojson"
@@ -166,7 +181,7 @@ def merge_devices(network:str, dir:str):
   gdf["state"] = (
     (gdf["type"] == "CB") |
     (
-      gdf["Subest"]
+      ~gdf["Subest"]
         .fillna("")
         .astype(str)
         .str.strip()
@@ -176,6 +191,11 @@ def merge_devices(network:str, dir:str):
   ).astype(int)
   gdf["sus_aip"] = gdf["type"].isin(["CB", "FU"])
   gdf["mom_aip"] = gdf["type"].isin(["CB"])
+
+  # append segment id's
+  # the segment id is actually encoded within Code
+  # line is "L(R:P3UDT12996-P3UDT14668)" and device is PadSwitch(R:P3UDT12996-P3UDT14668)P3U_174613
+  gdf["LineCode"] = gdf["Code"].apply(_extract_line_code)
 
   # split into T&D
   nomv = gdf["NomV_kV"].fillna("").astype(str)
@@ -312,6 +332,7 @@ def create_sources(network:str, dir:str):
       Phases=ABC
       PhasesV=ABC_MV
       PhasesVI=3_MV_960
+      LineCode=source.LineCode
   """
   network_dir = Path(os.path.join(dir, network))
   geojson_dir = network_dir / "geojson"
@@ -350,9 +371,10 @@ def create_sources(network:str, dir:str):
 
   sources = devices[
     (dtype.eq("CB")) &
-    (subest.isin(["true", "1", "yes", "y", "t"])) &
+    (subest.isin(["true"])) &
     (nomv.eq("12.47"))
   ].copy()
+  sources["LineCode"] = sources["Code"]
 
   if sources.empty:
     print(f"No sources found for {network}")
@@ -374,7 +396,7 @@ def create_sources(network:str, dir:str):
     "Imax": 960,
     "Status": 1,
     "Phases": "ABC",
-    "PhaseV": "ABC_MV",
+    "PhasesV": "ABC_MV",
     "PhasesVI": "3_MV_960",
     "geometry": sources.geometry,
   }, geometry="geometry", crs=devices.crs)
@@ -395,4 +417,48 @@ def create_sources(network:str, dir:str):
   sources.drop(columns="geometry").to_csv(str(sources_path).replace(".geojson", ".csv"), index=False)
   print(f"Saved: {sources_path} ({len(sources)})")
 
+def create_circuits(network:str, dir:str):
+  """
+  just a subset of devices, but all of the breakers
+  """
+  network_dir = Path(os.path.join(dir, network))
+  geojson_dir = network_dir / "geojson"
+
+  devices_path = geojson_dir / "dist_devices.geojson"
+  circuits_path = geojson_dir / "dist_circuits.geojson"
+
+  if os.path.exists(circuits_path):
+    print("Circuits already exist. Delete existing circuits geojson to run.")
+    return
+
+  devices = gpd.read_file(devices_path, engine="pyogrio")
+
+  subest = (
+    devices["Subest"]
+      .fillna("")
+      .astype(str)
+      .str.strip()
+      .str.lower()
+  )
+  dtype = (
+    devices["type"]
+      .fillna("")
+      .astype(str)
+      .str.strip()
+      .str.upper()
+  )
+
+  circuits = devices[
+    (dtype.eq("CB")) &
+    (~subest.isin(["true"]))
+  ].copy()
+
+  if circuits.empty:
+    print(f"No circuits found for {network}")
+    return
+
+  # save the circuits
+  circuits.to_file(circuits_path, driver="GeoJSON", engine="pyogrio")
+  circuits.drop(columns="geometry").to_csv(str(circuits_path).replace(".geojson", ".csv"), index=False)
+  print(f"Saved: {circuits_path} ({len(circuits)})")
 
