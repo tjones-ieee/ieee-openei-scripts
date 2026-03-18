@@ -398,6 +398,13 @@ def create_sources(network:str, dir:str):
     "Phases": "ABC",
     "PhasesV": "ABC_MV",
     "PhasesVI": "3_MV_960",
+    "Subest": True,
+    "Feeder": True,
+    "network": sources["network"],
+    "source_folder": sources["source_folder"],
+    "source_file": sources["source_file"],
+    "OH": True,
+    "UG": False,
     "geometry": sources.geometry,
   }, geometry="geometry", crs=devices.crs)
 
