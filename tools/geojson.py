@@ -374,12 +374,13 @@ def create_sources(network:str, dir:str):
     (subest.isin(["true"])) &
     (nomv.eq("12.47"))
   ].copy()
-  sources["LineCode"] = sources["Code"]
 
   if sources.empty:
     print(f"No sources found for {network}")
     return
 
+  # set the line code and create the "fake" line segments
+  sources["LineCode"] = sources["Code"]
   source_lines = gpd.GeoDataFrame({
     "Code": sources["Code"],
     "NodeA": sources["NodeA"],
