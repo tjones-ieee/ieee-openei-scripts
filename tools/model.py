@@ -35,13 +35,12 @@ _DEVICES = {}
 _DEVICES_BY_NODEA = {}
 _DEVICES_BY_NODEB = {}
 _TRANSFORMERS = {}
-_TRANSFORMERS_BY_NODEA = {}
-_TRANSFORMERS_BY_NODEB = {}
+_TRANSFORMERS_BY_NODE = {}
 
 # prevent infinite loops
 _TOUCHED_LINES = set()
 
-_MODEL:list[ConnectivityModel] = []
+_MODEL: dict[str, ConnectivityModel] = {}
 
 
 tree_chars = "123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -108,27 +107,19 @@ def _build_device_lookups(devices: dict) -> tuple[dict, dict]:
     print_progress(p,t)
   print()
 def _build_transformer_lookups(transformers: dict) -> tuple[dict, dict]:
-  global _TRANSFORMERS_BY_NODEA
-  global _TRANSFORMERS_BY_NODEB
+  global _TRANSFORMERS_BY_NODE
 
-  _TRANSFORMERS_BY_NODEA = {}
-  _TRANSFORMERS_BY_NODEB = {}
-
+  _TRANSFORMERS_BY_NODE = {}
   p = 0
   t = len(transformers)
   print_progress(p,t)
   for code, item in transformers.items():
-    node_a = item.get("NodeA")
-    node_b = item.get("NodeB")
+    node_a = item.get("Node")
 
     if pd.notna(node_a):
       node_a = str(node_a)
-      _TRANSFORMERS_BY_NODEA.setdefault(node_a, []).append(code)
+      _TRANSFORMERS_BY_NODE.setdefault(node_a, []).append(code)
 
-    if pd.notna(node_b):
-      node_b = str(node_b)
-      _TRANSFORMERS_BY_NODEB.setdefault(node_b, []).append(code)
-    
     p += 1
     print_progress(p,t)
   print()
@@ -220,11 +211,9 @@ def _get_devices(node:str):
 
 def _get_transformers(node:str):
   global _TRANSFORMERS
-  global _TRANSFORMERS_BY_NODEA
-  global _TRANSFORMERS_BY_NODEB
+  global _TRANSFORMERS_BY_NODE
   
-  ids = list(_TRANSFORMERS_BY_NODEA.get(node, []))
-  ids.extend(_TRANSFORMERS_BY_NODEB.get(node, []))
+  ids = list(_TRANSFORMERS_BY_NODE.get(node, []))
 
   items = []
   for id in ids:
@@ -235,6 +224,7 @@ def _get_transformers(node:str):
 
 @dataclass
 class TracePrms:
+  traversed_lines:list[str]
   line:dict
   node:str
   source_id:str
@@ -245,6 +235,14 @@ class TracePrms:
   seq:int
 
 
+def _update_customer_counts(traversed:list[str], cc:int):
+  global _MODEL
+  for line_code in traversed:
+    m = _MODEL.get(line_code)
+    if m:
+      m.downstream_cc += cc
+
+
 def _trace(prms:TracePrms):
   global _TOUCHED_LINES
   global _MODEL
@@ -252,10 +250,7 @@ def _trace(prms:TracePrms):
   this_line_id = prms.line.get("Code")
   _TOUCHED_LINES.add(this_line_id)
 
-  
-  # if this_line_id == "L(R:P5UDT19475-P5UDT9693)":
-  #   asdf=1
-
+  traversed = prms.traversed_lines
 
   this_node = prms.node
   next_node = prms.line.get("NodeB") if prms.node == prms.line.get("NodeA") else prms.line.get("NodeA")
@@ -275,13 +270,19 @@ def _trace(prms:TracePrms):
     tree=prms.tree,
     seq=prms.seq
   )
-  _MODEL.append(entry)
+  _MODEL[this_line_id] = entry
   
   # any devices on downstream node, check their state
   devices = _get_devices(next_node)
   for device in devices:
     if device.get("LineCode") == this_line_id and device.get("state", 1) != 1:
       return
+
+  # any transformers on the line?
+  # always assumed to be after a device on the node
+  transformers = _get_transformers(next_node)
+  for transformer in transformers:
+    _update_customer_counts(traversed, transformer.get("Customer_Count", 0))
   
   # check for sus/mom aip (not circuit breakers)
   sus_aip = prms.susaipid
@@ -316,7 +317,10 @@ def _trace(prms:TracePrms):
         seq = 1
         break
 
+    next_traversed = traversed + [candidate.get("Code")]
+
     next_prms = TracePrms(
+      traversed_lines=next_traversed,
       line=candidate,
       node=next_node,
       source_id=prms.source_id,
@@ -329,37 +333,6 @@ def _trace(prms:TracePrms):
     _trace(next_prms)
   
     idx += 1
-
-    # if len(circuits):
-    #   for circuit in circuits:
-    #     if circuit.get("NodeB") == candidate.get("NodeB"):
-    #       circuit_id = circuit.get("Code", circuit_id)
-    #       sus_aip = circuit_id
-    #       mom_aip = circuit_id
-    #       tree = "1"
-    #       seq = 1
-
-          
-    # else:
-    #   for device in devices:
-    #     if device.get("LineCode") == candidate.get("Code") and device.get("sus_aip", False):
-    #       sus_aip = device.get("Code")
-    #     if device.get("LineCode") == candidate.get("Code") and device.get("mom_aip", False):
-    #       mom_aip = device.get("Code")
-    #   next_prms = TracePrms(
-    #     line=candidate,
-    #     node=next_node,
-    #     source_id=prms.source_id,
-    #     circuit_id=circuit_id,
-    #     susaipid=sus_aip,
-    #     momaipid=mom_aip,
-    #     tree=tree,
-    #     seq=seq
-    #   )
-    #   _trace(next_prms)
-    
-    #   idx += 1
-
 
 def create_model(network:str, dir:str):
   global _SOURCES
@@ -377,6 +350,7 @@ def create_model(network:str, dir:str):
     lines = _get_lines("", node)
     for line in lines:
       prms = TracePrms(
+        traversed_lines=[line.get("Code")],
         line=line,
         node=node,
         source_id=id,
@@ -391,9 +365,12 @@ def create_model(network:str, dir:str):
       print_progress(len(_MODEL), t)
   print()
 
+  # calculate upstream customer counts...
+
+
   print("Saving the model...")
   model_path = geojson_dir / "dist_model.csv"
-  model = pd.DataFrame([asdict(x) for x in _MODEL])
+  model = pd.DataFrame([asdict(x) for x in _MODEL.values()])
   model.to_csv(model_path, index=False)
 
   print("Creating GeoJSON file to inspect the model...")
