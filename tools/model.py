@@ -252,6 +252,10 @@ def _trace(prms:TracePrms):
   this_line_id = prms.line.get("Code")
   _TOUCHED_LINES.add(this_line_id)
 
+  
+  # if this_line_id == "L(R:P5UDT19475-P5UDT9693)":
+  #   asdf=1
+
 
   this_node = prms.node
   next_node = prms.line.get("NodeB") if prms.node == prms.line.get("NodeA") else prms.line.get("NodeA")
@@ -276,7 +280,7 @@ def _trace(prms:TracePrms):
   # any devices on downstream node, check their state
   devices = _get_devices(next_node)
   for device in devices:
-    if device.get("LineCode") != this_line_id and device.get("state", 1) != 1:
+    if device.get("LineCode") == this_line_id and device.get("state", 1) != 1:
       return
   
   # check for sus/mom aip (not circuit breakers)
