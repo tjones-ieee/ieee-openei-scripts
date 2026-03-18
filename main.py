@@ -44,8 +44,6 @@ def convert_all():
   geo.create_sources("AUS", dir=config.OUTPUT_DIRECTORY) # requires lines and devices
   geo.create_circuits("AUS", dir=config.OUTPUT_DIRECTORY) # requires devices
 
-
-
 if __name__ == "__main__":
   # for best results, remove everything in config.OUTPUT_DIRECTORY first
   # once downloaded, you can comment download_all()

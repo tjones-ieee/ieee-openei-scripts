@@ -3,6 +3,11 @@ import os
 from pathlib import Path
 import pandas as pd
 import geopandas as gpd
+from uuid import uuid4
+from dataclasses import asdict
+from tools.customer_gen import create_customers
+from tools.spatial import offset_point
+from tools.progress import print_progress
 
 _CRS_MAP = {
   "AUS": "EPSG:32614",
@@ -64,7 +69,7 @@ def _get_merged_geojson(network:str, network_dir:str, file_name:str) -> gpd.GeoD
       print(f"Failed: {shp_name} -> {ex}")
 
   return None
-    
+
 
 def merge_split_lines(network:str, dir:str):
   network_dir = Path(os.path.join(dir, network))
@@ -274,6 +279,7 @@ def merge_transformers(network:str, dir:str):
   network_dir = Path(os.path.join(dir, network))
   geojson_dir = network_dir / "geojson"
   out_path = geojson_dir / "dist_transformers.geojson"
+  customer_path = geojson_dir / "dist_customers.geojson"
 
   if os.path.exists(out_path):
     print("Transformers already exist. Delete existing transformer geojson to run.")
@@ -281,12 +287,47 @@ def merge_transformers(network:str, dir:str):
 
   gdf = _get_merged_geojson(network, network_dir, "DistribTransf_N")
 
+  # add unique identifier to each transformer
+  print("Creating unique identifiers for each transformer.")
+  gdf["Transformer_Id"] = [str(uuid4()) for _ in range(len(gdf))]
+
+
   # OEDI is modeled through transformers into the secondary network
   # all customers are in "NewConsumerGreenfield_N"
   # transformer customer counts cannot be directly determined without a connectivity trace
   # note that transformers have a primary node, and then the secondary node just as "LV" to the end of it
   # then the secondary network model works just like the primary model
-  
+  # However, for now, I will just create random customers based on the size of the transformer...
+  rows: list[dict] = []
+  print("Creating customers for each transformer.")
+  total_xfmrs = len(gdf)
+  processed = 0
+  print_progress(processed, total_xfmrs)
+  for _, transformer in gdf.iterrows():
+    id = transformer["Transformer_Id"]
+    kva = transformer["Size_kVA"]
+    geom = transformer.geometry
+
+    custs = create_customers(id, float(kva or 0.0))
+
+    transformer["Customer_Count"] = len(custs)
+
+    for cust in custs:
+      row = asdict(cust)
+      row["geometry"] = offset_point(geom, 0.00005) # so customers are around the transformer...
+      rows.append(row)
+
+    processed += 1
+    print_progress(processed, total_xfmrs)
+  print() # clears the carriage from print progress...
+
+  # create/save the customer geodataframe
+  customers = gpd.GeoDataFrame(rows, geometry="geometry", crs=gdf.crs)
+  customers.to_file(customer_path, driver="GeoJSON", engine="pyogrio")
+  customers.drop(columns="geometry").to_csv(str(customer_path).replace(".geojson", ".csv"), index=False)
+  print(f"Saved: {customer_path} ({len(customers)})")
+
+  # save the transformers
   gdf.to_file(out_path, driver="GeoJSON", engine="pyogrio")
   gdf.drop(columns="geometry").to_csv(str(out_path).replace(".geojson", ".csv"), index=False)
   print(f"Saved: {out_path} ({len(gdf)})")
@@ -294,7 +335,7 @@ def merge_transformers(network:str, dir:str):
 def merge_customers(network:str, dir:str):
   network_dir = Path(os.path.join(dir, network))
   geojson_dir = network_dir / "geojson"
-  out_path = geojson_dir / "customers.geojson"
+  out_path = geojson_dir / "customers_raw.geojson"
 
   if os.path.exists(out_path):
     print("Customers already exist. Delete existing customers geojson to run.")
