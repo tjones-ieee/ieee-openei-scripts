@@ -334,6 +334,36 @@ def _trace(prms:TracePrms):
   
     idx += 1
 
+def _populate_upstream_cc():
+  global _MODEL
+  global _CIRCUITS
+
+  max_cc_by_circuit: dict[str, int] = {}
+
+  p = 0
+  t = len(_CIRCUITS) + len(_MODEL)
+  print_progress(p,t)
+
+  for circuit_id in _CIRCUITS.keys():
+    max_cc = 0
+
+    for m in _MODEL.values():
+      if m.circuit_id == circuit_id and m.downstream_cc > max_cc:
+        max_cc = m.downstream_cc
+
+    max_cc_by_circuit[circuit_id] = max_cc
+
+    p += 1
+    print_progress(p,t)
+
+  for m in _MODEL.values():
+    max_cc = max_cc_by_circuit.get(m.circuit_id, 0)
+    m.upstream_cc = max(0, max_cc - m.downstream_cc)
+    p += 1
+    print_progress(p,t)
+  
+  print()
+
 def create_model(network:str, dir:str):
   global _SOURCES
   global _LINES
@@ -366,7 +396,8 @@ def create_model(network:str, dir:str):
   print()
 
   # calculate upstream customer counts...
-
+  print("Calculating upstream customer counts...")
+  _populate_upstream_cc()
 
   print("Saving the model...")
   model_path = geojson_dir / "dist_model.csv"
