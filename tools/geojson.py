@@ -303,14 +303,19 @@ def merge_transformers(network:str, dir:str):
   total_xfmrs = len(gdf)
   processed = 0
   print_progress(processed, total_xfmrs)
-  for _, transformer in gdf.iterrows():
+  for idx, transformer in gdf.iterrows():
     id = transformer["Transformer_Id"]
-    kva = transformer["Size_kVA"]
+    kva = float(transformer.get("Size_kVA") or 0.0)
     geom = transformer.geometry
 
     custs = create_customers(id, float(kva or 0.0))
 
-    transformer["Customer_Count"] = len(custs)
+    # update the transformer with customer count information
+    gdf.at[idx, "Customer_Count"] = len(custs)
+    gdf.at[idx, "Customer_Count_RES"] = sum(1 for c in custs if c.customer_class == "RES")
+    gdf.at[idx, "Customer_Count_COM"] = sum(1 for c in custs if c.customer_class == "COM")
+    gdf.at[idx, "Customer_Count_IND"] = sum(1 for c in custs if c.customer_class == "IND")
+    gdf.at[idx, "Critical_Loads"] = sum(1 for c in custs if c.critical_flag != None)
 
     for cust in custs:
       row = asdict(cust)
