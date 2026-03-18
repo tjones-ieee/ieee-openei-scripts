@@ -15,7 +15,7 @@ from dataclasses import dataclass, field, asdict
 from config import config
 from tools.download import download
 import tools.geojson as geo
-from tools.model import create_model
+from tools.model import ConnectivityModelBuilder
 
 def download_all():
   for network in ["AUS", "GSO", "SFO"]:
@@ -31,9 +31,18 @@ def download_all():
     )
 
 def convert_all():
-  # for network in ["AUS", "GSO", "SFO"]:
-  #   geo.merge_split_lines(network, dir=config.OUTPUT_DIRECTORY)
-  #   geo.merge_devices(network, dir=config.OUTPUT_DIRECTORY)
+  for network in ["AUS", "GSO", "SFO"]:
+    geo.merge_nodes(network, dir=config.OUTPUT_DIRECTORY)
+    geo.merge_split_lines(network, dir=config.OUTPUT_DIRECTORY)
+    geo.merge_devices(network, dir=config.OUTPUT_DIRECTORY)
+    geo.merge_substations(network, dir=config.OUTPUT_DIRECTORY)
+    geo.merge_transformers(network, dir=config.OUTPUT_DIRECTORY)
+    geo.merge_customers(network, dir=config.OUTPUT_DIRECTORY)
+    geo.create_sources(network, dir=config.OUTPUT_DIRECTORY) # requires lines and devices
+    geo.create_circuits(network, dir=config.OUTPUT_DIRECTORY) # requires devices
+
+    builder = ConnectivityModelBuilder()
+    builder.build(network, dir=config.OUTPUT_DIRECTORY)
 
   # must do nodes and lines first for devices
   # geo.merge_nodes("AUS", dir=config.OUTPUT_DIRECTORY)
@@ -44,8 +53,7 @@ def convert_all():
   # geo.merge_customers("AUS", dir=config.OUTPUT_DIRECTORY)
   # geo.create_sources("AUS", dir=config.OUTPUT_DIRECTORY) # requires lines and devices
   # geo.create_circuits("AUS", dir=config.OUTPUT_DIRECTORY) # requires devices
-
-  create_model("AUS", dir=config.OUTPUT_DIRECTORY)
+  # create_model("AUS", dir=config.OUTPUT_DIRECTORY)
 
 if __name__ == "__main__":
   # for best results, remove everything in config.OUTPUT_DIRECTORY first
