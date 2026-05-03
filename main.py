@@ -16,6 +16,7 @@ from config import config
 from tools.download import download
 import tools.geojson as geo
 from tools.model import ConnectivityModelBuilder
+from tools.analyze import RunAnalysis
 
 def download_all():
   for network in ["AUS", "GSO", "SFO"]:
@@ -46,13 +47,25 @@ def convert_all():
     builder = ConnectivityModelBuilder()
     builder.build(network, dir=config.OUTPUT_DIRECTORY)
 
+def analyze():
+  input_dir = config.OUTPUT_DIRECTORY
+  network_dir = Path(os.path.join(input_dir, 'AUS'))
+  geojson_dir = network_dir / "geojson"
+  model_path = geojson_dir / "dist_model.csv"
+  
+  output_dir = Path(os.path.join(geojson_dir, 'analysis'))
+
+  RunAnalysis(model_path, output_dir)
+
 if __name__ == "__main__":
   # for best results, remove everything in config.OUTPUT_DIRECTORY first
   # once downloaded, you can comment download_all()
   # and then delete everything in /geojson thereafter
 
   # download_all() # download files
-  convert_all() # convert to GeoJSON
+  # convert_all() # convert to GeoJSON
+  analyze()
+  
 
 
 # dumby equip === nodes
