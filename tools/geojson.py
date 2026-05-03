@@ -6,7 +6,7 @@ import geopandas as gpd
 from uuid import uuid4
 from dataclasses import asdict
 from tools.customer_gen import create_customers
-from tools.spatial import offset_point
+from tools.spatial import offset_point, line_to_point
 from tools.progress import print_progress
 
 _CRS_MAP = {
@@ -202,6 +202,28 @@ def merge_devices(network:str, dir:str):
   # line is "L(R:P3UDT12996-P3UDT14668)" and device is PadSwitch(R:P3UDT12996-P3UDT14668)P3U_174613
   gdf["LineCode"] = gdf["Code"].apply(_extract_line_code)
 
+  # append the phases (A, B, C, or ABC)
+  # this is determined by looking at the line the device is attached to
+  print("Getting the phases the device touches...")
+  lines_path = geojson_dir / "dist_primary_lines.geojson"
+  lines = gpd.read_file(lines_path, engine="pyogrio")
+  line_phases = (
+    lines[["Code", "Phases"]]
+      .dropna(subset=["Code"])
+      .drop_duplicates(subset=["Code", "Phases"])
+  )
+  gdf = gdf.merge(
+    line_phases.rename(columns={"Code": "LineCode"}),
+    how="left",
+    on="LineCode"
+  )
+  gdf["Phases"] = gdf["Phases"].fillna("ABC")
+
+
+  # convert the device geometry...no idea why they used "lines" for devices...
+  gdf["geometry"] = gdf.geometry.apply(line_to_point)
+
+
   # split into T&D
   nomv = gdf["NomV_kV"].fillna("").astype(str)
   tran_gdf = gdf[~nomv.str.contains("12.47", case=False, na=False)].copy()
@@ -291,7 +313,6 @@ def merge_transformers(network:str, dir:str):
   print("Creating unique identifiers for each transformer.")
   gdf["Transformer_Id"] = [str(uuid4()) for _ in range(len(gdf))]
 
-
   # OEDI is modeled through transformers into the secondary network
   # all customers are in "NewConsumerGreenfield_N"
   # transformer customer counts cannot be directly determined without a connectivity trace
@@ -356,30 +377,6 @@ def merge_customers(network:str, dir:str):
   print(f"Saved: {out_path} ({len(gdf)})")
 
 def create_sources(network:str, dir:str):
-  """
-  for "sources":
-    within devices, where type = CB and subest = True and NomV_kV = 12.47
-    have to create a fake line because NodeA for these devices does not exist in lines
-    but it's easy because the device itself is a "line string"
-      Code=source.Code
-      NodeA=source.NodeA
-      NodeB=source.NodeB
-      NomV=12.47
-      Len=0.007
-      Equip=3P_OH_AL_ACSR_1033kcmil_Curlew_12.47_1
-      R=0.00111
-      X=0.00684
-      C=0.24259
-      R0=0.00283
-      X0=0.0175
-      C0=0.0175
-      Imax=960
-      Status=1
-      Phases=ABC
-      PhasesV=ABC_MV
-      PhasesVI=3_MV_960
-      LineCode=source.LineCode
-  """
   network_dir = Path(os.path.join(dir, network))
   geojson_dir = network_dir / "geojson"
 
@@ -426,7 +423,7 @@ def create_sources(network:str, dir:str):
     return
 
   # set the line code and create the "fake" line segments
-  sources["LineCode"] = sources["Code"].apply(_extract_line_code)
+  sources["LineCode"] = [str(uuid4()) for _ in range(len(sources))]
   source_lines = gpd.GeoDataFrame({
     "Code": sources["LineCode"],
     "NodeA": sources["NodeA"],

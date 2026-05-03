@@ -31,7 +31,9 @@ def download_all():
     )
 
 def convert_all():
-  for network in ["AUS", "GSO", "SFO"]:
+  # for network in ["AUS", "GSO", "SFO"]:
+  for network in ["AUS"]:
+    # must do nodes and lines first for devices
     geo.merge_nodes(network, dir=config.OUTPUT_DIRECTORY)
     geo.merge_split_lines(network, dir=config.OUTPUT_DIRECTORY)
     geo.merge_devices(network, dir=config.OUTPUT_DIRECTORY)
@@ -43,17 +45,6 @@ def convert_all():
 
     builder = ConnectivityModelBuilder()
     builder.build(network, dir=config.OUTPUT_DIRECTORY)
-
-  # must do nodes and lines first for devices
-  # geo.merge_nodes("AUS", dir=config.OUTPUT_DIRECTORY)
-  # geo.merge_split_lines("AUS", dir=config.OUTPUT_DIRECTORY)
-  # geo.merge_devices("AUS", dir=config.OUTPUT_DIRECTORY)
-  # geo.merge_substations("AUS", dir=config.OUTPUT_DIRECTORY)
-  # geo.merge_transformers("AUS", dir=config.OUTPUT_DIRECTORY)
-  # geo.merge_customers("AUS", dir=config.OUTPUT_DIRECTORY)
-  # geo.create_sources("AUS", dir=config.OUTPUT_DIRECTORY) # requires lines and devices
-  # geo.create_circuits("AUS", dir=config.OUTPUT_DIRECTORY) # requires devices
-  # create_model("AUS", dir=config.OUTPUT_DIRECTORY)
 
 if __name__ == "__main__":
   # for best results, remove everything in config.OUTPUT_DIRECTORY first
